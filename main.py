@@ -2,7 +2,13 @@ import os
 import discord
 from discord import app_commands
 from discord.ext import commands
+import streamlit as st
 
+# --- STREAMLIT DASHBOARD ---
+st.title("🤖 Event Logger Bot")
+st.success("Bot process active.")
+
+# --- DISCORD BOT SETUP ---
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -10,8 +16,8 @@ intents.reactions = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Pulls token securely from host environment variables
-BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+# Pull token from Streamlit Secrets or Environment Variable
+BOT_TOKEN = st.secrets.get("DISCORD_BOT_TOKEN") or os.getenv("DISCORD_BOT_TOKEN")
 
 @bot.event
 async def on_ready():
@@ -70,4 +76,4 @@ if __name__ == "__main__":
     if BOT_TOKEN:
         bot.run(BOT_TOKEN)
     else:
-        print("❌ Error: DISCORD_BOT_TOKEN environment variable is missing!")
+        st.error("Missing DISCORD_BOT_TOKEN in Streamlit Secrets!")
