@@ -6,9 +6,10 @@ import streamlit as st
 
 # ==========================================
 # CONFIGURATION
-# Right-click the Logging Program role in Discord -> Copy Role ID
+# Replace this with your actual Role ID!
+# (Right-click role in Discord -> Copy Role ID)
 # ==========================================
-LOGGING_ROLE_ID = 1538168866314784878  # Replace with your actual Role ID
+LOGGING_ROLE_ID = 1234567890123456789
 
 # --- STREAMLIT DASHBOARD ---
 st.title("🤖 Event Logger Bot")
@@ -69,7 +70,7 @@ async def log_event(
     attendees_str = "\n".join(sorted(attendees)) if attendees else "No attendees found."
     role_ping = f"<@&{LOGGING_ROLE_ID}>" if LOGGING_ROLE_ID else "@Logging Program"
 
- log_content = (
+    log_content = (
         f"**Host:** {interaction.user.mention}\n\n"
         f"**Attendees:**\n{attendees_str}\n\n"
         f"**Points Awarded:** {points}\n\n"
@@ -77,8 +78,14 @@ async def log_event(
         f"**Proof:** {proof.url}"
     )
 
-    # Force discord.py to allow role and user mentions
+    # Force Discord to allow the role ping to trigger notifications
     await interaction.followup.send(
         log_content,
         allowed_mentions=discord.AllowedMentions(roles=True, users=True)
     )
+
+if __name__ == "__main__":
+    if BOT_TOKEN:
+        bot.run(BOT_TOKEN)
+    else:
+        st.error("Missing DISCORD_BOT_TOKEN in Streamlit Secrets!")
