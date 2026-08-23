@@ -4,6 +4,12 @@ from discord import app_commands
 from discord.ext import commands
 import streamlit as st
 
+# ==========================================
+# CONFIGURATION
+# Right-click the Logging Program role in Discord -> Copy Role ID
+# ==========================================
+LOGGING_ROLE_ID = 1541004767122161674  # Replace with your actual Role ID
+
 # --- STREAMLIT DASHBOARD ---
 st.title("🤖 Event Logger Bot")
 st.success("Bot process active.")
@@ -16,7 +22,6 @@ intents.reactions = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Pull token from Streamlit Secrets or Environment Variable
 BOT_TOKEN = st.secrets.get("DISCORD_BOT_TOKEN") or os.getenv("DISCORD_BOT_TOKEN")
 
 @bot.event
@@ -57,16 +62,18 @@ async def log_event(
     attendees = set()
     for reaction in msg.reactions:
         async for user in reaction.users():
-            if not user.bot:
+            # Exclude bots AND exclude the host who executed the command
+            if not user.bot and user.id != interaction.user.id:
                 attendees.add(user.mention)
 
     attendees_str = "\n".join(sorted(attendees)) if attendees else "No attendees found."
+    role_ping = f"<@&{LOGGING_ROLE_ID}>" if LOGGING_ROLE_ID else "@Logging Program"
 
     log_content = (
         f"**Host:** {interaction.user.mention}\n\n"
         f"**Attendees:**\n{attendees_str}\n\n"
         f"**Points Awarded:** {points}\n\n"
-        f"**Ping:** @Logging Program\n\n"
+        f"**Ping:** {role_ping}\n\n"
         f"**Proof:** {proof.url}"
     )
 
