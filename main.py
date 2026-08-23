@@ -69,7 +69,7 @@ async def log_event(
     attendees_str = "\n".join(sorted(attendees)) if attendees else "No attendees found."
     role_ping = f"<@&{LOGGING_ROLE_ID}>" if LOGGING_ROLE_ID else "@Logging Program"
 
-    log_content = (
+ log_content = (
         f"**Host:** {interaction.user.mention}\n\n"
         f"**Attendees:**\n{attendees_str}\n\n"
         f"**Points Awarded:** {points}\n\n"
@@ -77,10 +77,8 @@ async def log_event(
         f"**Proof:** {proof.url}"
     )
 
-    await interaction.followup.send(log_content)
-
-if __name__ == "__main__":
-    if BOT_TOKEN:
-        bot.run(BOT_TOKEN)
-    else:
-        st.error("Missing DISCORD_BOT_TOKEN in Streamlit Secrets!")
+    # Force discord.py to allow role and user mentions
+    await interaction.followup.send(
+        log_content,
+        allowed_mentions=discord.AllowedMentions(roles=True, users=True)
+    )
