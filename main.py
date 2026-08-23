@@ -8,7 +8,7 @@ import streamlit as st
 # CONFIGURATION
 # Right-click the Logging Program role in Discord -> Copy Role ID
 # ==========================================
-LOGGING_ROLE_ID = 1541004767122161674  # Replace with your actual Role ID
+LOGGING_ROLE_ID = <@1538168866314784878>  # Replace with your actual Role ID
 
 # --- STREAMLIT DASHBOARD ---
 st.title("🤖 Event Logger Bot")
