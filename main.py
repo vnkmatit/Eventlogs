@@ -32,14 +32,14 @@ async def on_ready():
 @app_commands.describe(
     message_id="The ID of the announcement/event message with reactions",
     points="Points awarded (e.g. 10 or 15)",
-    proof="Proof link or image URL",
+    proof="Upload proof image file",
     channel="The channel containing the message (optional)"
 )
 async def log_event(
     interaction: discord.Interaction,
     message_id: str,
     points: str,
-    proof: str,
+    proof: discord.Attachment,
     channel: discord.TextChannel = None
 ):
     await interaction.response.defer()
@@ -67,7 +67,7 @@ async def log_event(
         f"**Attendees:**\n{attendees_str}\n\n"
         f"**Points Awarded:** {points}\n\n"
         f"**Ping:** @Logging Program\n\n"
-        f"**Proof:** {proof}"
+        f"**Proof:** {proof.url}"
     )
 
     await interaction.followup.send(log_content)
