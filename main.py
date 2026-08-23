@@ -4,13 +4,6 @@ from discord import app_commands
 from discord.ext import commands
 import streamlit as st
 
-# ==========================================
-# CONFIGURATION
-# Replace this with your actual Role ID!
-# (Right-click role in Discord -> Copy Role ID)
-# ==========================================
-LOGGING_ROLE_ID = 1234567890123456789
-
 # --- STREAMLIT DASHBOARD ---
 st.title("🤖 Event Logger Bot")
 st.success("Bot process active.")
@@ -68,21 +61,15 @@ async def log_event(
                 attendees.add(user.mention)
 
     attendees_str = "\n".join(sorted(attendees)) if attendees else "No attendees found."
-    role_ping = f"<@&{LOGGING_ROLE_ID}>" if LOGGING_ROLE_ID else "@Logging Program"
 
     log_content = (
         f"**Host:** {interaction.user.mention}\n\n"
         f"**Attendees:**\n{attendees_str}\n\n"
         f"**Points Awarded:** {points}\n\n"
-        f"**Ping:** {role_ping}\n\n"
         f"**Proof:** {proof.url}"
     )
 
-    # Force Discord to allow the role ping to trigger notifications
-    await interaction.followup.send(
-        log_content,
-        allowed_mentions=discord.AllowedMentions(roles=True, users=True)
-    )
+    await interaction.followup.send(log_content)
 
 if __name__ == "__main__":
     if BOT_TOKEN:
