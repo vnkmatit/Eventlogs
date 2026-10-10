@@ -9,7 +9,7 @@ import streamlit as st
 # ==========================================
 # CONFIGURATION & CHANNEL IDs
 # ==========================================
-EVENT_CHECK_CHANNEL_ID = 1538156892688355418  # Channel where event check messages are located
+EVENT_CHECK_CHANNEL_ID = 1538156892688355418  # Locked channel for event checks
 LOGGING_CHANNEL_ID = 1538166153799532574      # Channel where logs will be posted
 CSV_FILE = "quotas.csv"
 
@@ -78,33 +78,35 @@ async def log_event(
     points: str,
     proof: discord.Attachment
 ):
-    # Defer ephemeral response so the host gets private confirmation
     await interaction.response.defer(ephemeral=True)
 
-    # Validate points input
     try:
         earned_points = int(points.strip())
     except ValueError:
         await interaction.followup.send("❌ Error: Points must be a valid number (e.g., `10`).", ephemeral=True)
         return
 
-    # Fetch the specific event check channel
+    # Force search exclusively in the locked event check channel
     check_channel = bot.get_channel(EVENT_CHECK_CHANNEL_ID)
     if not check_channel:
         try:
             check_channel = await bot.fetch_channel(EVENT_CHECK_CHANNEL_ID)
         except Exception:
-            await interaction.followup.send(f"❌ Could not access event check channel ID `{EVENT_CHECK_CHANNEL_ID}`.", ephemeral=True)
+            await interaction.followup.send(
+                f"❌ Could not access event check channel <#{EVENT_CHECK_CHANNEL_ID}>. Check bot permissions!",
+                ephemeral=True
+            )
             return
 
-    # Fetch the event message
     try:
         msg = await check_channel.fetch_message(int(message_id.strip()))
     except Exception:
-        await interaction.followup.send(f"❌ Could not find message ID `{message_id}` in check channel.", ephemeral=True)
+        await interaction.followup.send(
+            f"❌ Could not find message ID `{message_id}` in {check_channel.mention}.",
+            ephemeral=True
+        )
         return
 
-    # Gather attendees (exclude bots and the host)
     attendees_set = set()
     attendees_data = []
     
@@ -120,10 +122,8 @@ async def log_event(
 
     attendees_str = "\n".join(sorted(attendees_set))
 
-    # Update quota sheet data
     update_quotas(attendees_data, earned_points)
 
-    # Fetch the designated logging post channel
     log_channel = bot.get_channel(LOGGING_CHANNEL_ID)
     if not log_channel:
         try:
@@ -132,7 +132,6 @@ async def log_event(
             await interaction.followup.send(f"❌ Could not access logging channel ID `{LOGGING_CHANNEL_ID}`.", ephemeral=True)
             return
 
-    # Format log output content
     log_content = (
         f"**Host:** {interaction.user.mention}\n\n"
         f"**Attendees:**\n{attendees_str}\n\n"
@@ -140,19 +139,16 @@ async def log_event(
         f"**Proof:** {proof.url}"
     )
 
-    # Post public log to the logging channel
     await log_channel.send(
         log_content,
         allowed_mentions=discord.AllowedMentions.none()
     )
 
-    # Confirm success privately to the host
     await interaction.followup.send(
         f"✅ Successfully logged event! Added `{earned_points}` points to {len(attendees_set)} attendees and posted report to <#{LOGGING_CHANNEL_ID}>.",
         ephemeral=True
     )
 
-# --- RUN BOT IN BACKGROUND THREAD (Ensures Streamlit UI stays active) ---
 def run_discord_bot():
     if BOT_TOKEN:
         bot.run(BOT_TOKEN)
