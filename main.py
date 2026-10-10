@@ -17,7 +17,7 @@ CSV_FILE = "quotas.csv"
 st.title("📊 Event Quota Sheet & Bot Dashboard")
 st.success("🤖 Bot process active and listening for events.")
 
-# Display Live Quota Sheet Table
+# Display Live Quota Sheet Table (Accessible via web link)
 if os.path.exists(CSV_FILE):
     df = pd.read_csv(CSV_FILE)
     st.subheader("Member Quota Points Leaderboard")
@@ -86,7 +86,6 @@ async def log_event(
         await interaction.followup.send("❌ Error: Points must be a valid number (e.g., `10`).", ephemeral=True)
         return
 
-    # Force search exclusively in the locked event check channel
     check_channel = bot.get_channel(EVENT_CHECK_CHANNEL_ID)
     if not check_channel:
         try:
@@ -148,6 +147,63 @@ async def log_event(
         f"✅ Successfully logged event! Added `{earned_points}` points to {len(attendees_set)} attendees and posted report to <#{LOGGING_CHANNEL_ID}>.",
         ephemeral=True
     )
+
+@bot.tree.command(name="quota", description="Check current quota points for yourself or another user")
+@app_commands.describe(user="Optional user to check (defaults to yourself)")
+async def quota(interaction: discord.Interaction, user: discord.Member = None):
+    target_user = user or interaction.user
+    
+    if not os.path.exists(CSV_FILE):
+        await interaction.response.send_message("❌ No quota sheet data exists yet.", ephemeral=True)
+        return
+
+    df = pd.read_csv(CSV_FILE)
+    user_id_str = str(target_user.id)
+
+    if user_id_str in df["User ID"].astype(str).values:
+        user_row = df.loc[df["User ID"].astype(str) == user_id_str].iloc[0]
+        points = user_row["Points"]
+        await interaction.response.send_message(f"📊 **{target_user.display_name}'s Quota:** `{points}` points", ephemeral=False)
+    else:
+        await interaction.response.send_message(f"📊 **{target_user.display_name}** has `0` points on the quota sheet.", ephemeral=False)
+
+@bot.tree.command(name="remove_points", description="Remove points from a specific user's quota")
+@app_commands.describe(
+    user="The user you want to deduct points from",
+    points="Number of points to remove"
+)
+async def remove_points(
+    interaction: discord.Interaction,
+    user: discord.Member,
+    points: str
+):
+    await interaction.response.defer(ephemeral=True)
+
+    try:
+        deduct_points = int(points.strip())
+    except ValueError:
+        await interaction.followup.send("❌ Error: Points must be a valid number (e.g., `5`).", ephemeral=True)
+        return
+
+    if not os.path.exists(CSV_FILE):
+        await interaction.followup.send("❌ No quota sheet data exists yet.", ephemeral=True)
+        return
+
+    df = pd.read_csv(CSV_FILE)
+    user_id_str = str(user.id)
+
+    if user_id_str in df["User ID"].astype(str).values:
+        current_points = int(df.loc[df["User ID"].astype(str) == user_id_str, "Points"].values[0])
+        new_points = max(0, current_points - deduct_points) 
+        df.loc[df["User ID"].astype(str) == user_id_str, "Points"] = new_points
+        df.to_csv(CSV_FILE, index=False)
+        
+        await interaction.followup.send(
+            f"✅ Successfully removed `{deduct_points}` points from {user.mention}. Their new total is `{new_points}` points.",
+            ephemeral=True
+        )
+    else:
+        await interaction.followup.send(f"❌ {user.mention} is not currently found in the quota sheet.", ephemeral=True)
 
 def run_discord_bot():
     if BOT_TOKEN:
