@@ -148,7 +148,7 @@ async def log_event(
 
     # Confirm success privately to the host
     await interaction.followup.send(
-        f"✅ Successfully logged event! Added `{earned_points}` points to {len(attendees_set)} attendees and posted report to <#{LOGGING_CHANNEL_ID>}.",
+        f"✅ Successfully logged event! Added `{earned_points}` points to {len(attendees_set)} attendees and posted report to <#{LOGGING_CHANNEL_ID>}."
         ephemeral=True
     )
 
