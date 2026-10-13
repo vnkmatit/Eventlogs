@@ -114,6 +114,17 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 BOT_TOKEN = st.secrets.get("DISCORD_BOT_TOKEN") or os.getenv("DISCORD_BOT_TOKEN")
 
+# --- CUSTOM ROLE PERMISSION CHECK ---
+def is_officer_or_staff():
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if interaction.user.guild_permissions.administrator:
+            return True
+        allowed_roles = {"officer corps", "staff"}
+        if any(role.name.lower() in allowed_roles for role in interaction.user.roles):
+            return True
+        return False
+    return app_commands.check(predicate)
+
 @bot.event
 async def on_ready():
     print(f"🤖 Bot is ONLINE as {bot.user}", flush=True)
@@ -151,7 +162,6 @@ async def on_message(message):
 
         users_to_reward = {}
         host_id = message.author.id
-        # Use display_name to capture server nickname / Roblox display name
         users_to_reward[host_id] = message.author.display_name
 
         for member in message.mentions:
@@ -189,6 +199,7 @@ async def quota(interaction: discord.Interaction, user: discord.Member = None):
     user="The user you want to deduct points from",
     points="Number of points to remove"
 )
+@is_officer_or_staff()
 async def remove_points(
     interaction: discord.Interaction,
     user: discord.Member,
@@ -228,6 +239,13 @@ async def remove_points(
         )
     else:
         await interaction.followup.send(f"❌ {user.mention} is not currently found in the quota sheet.", ephemeral=True)
+
+@remove_points.error
+async def remove_points_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.CheckFailure):
+        await interaction.response.send_message("❌ You must have the **Officer Corps** or **Staff** role to use this command.", ephemeral=True)
+    else:
+        await interaction.response.send_message(f"❌ An error occurred: {error}", ephemeral=True)
 
 def run_discord_bot():
     if BOT_TOKEN:
