@@ -106,13 +106,13 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    print(f"📥 Received message from {message.author}: '{message.content}' in channel ID {message.channel.id}")
+    # This will print EVERY message the bot can see across the entire server
+    print(f"🔍 GLOBAL DEBUG: Saw message '{message.content}' from {message.author} in channel #{message.channel.name} ({message.channel.id})")
 
     if message.author.bot:
         return
 
     if message.channel.id != LOGGING_CHANNEL_ID:
-        print(f"⚠️ Ignored: Message is in channel {message.channel.id}, but logging channel is set to {LOGGING_CHANNEL_ID}")
         return
 
     try:
@@ -121,12 +121,10 @@ async def on_message(message):
             points_match = re.search(r'(\d+)\s*(?:points|pts)', message.content, re.IGNORECASE)
 
         if not points_match:
-            print(f"⚠️ Ignored: Could not find points pattern in message: '{message.content}'")
+            print(f"⚠️ Ignored: Could not find points pattern in message.")
             return
 
         earned_points = int(points_match.group(1))
-        print(f"✅ Found {earned_points} points! Processing users...")
-
         users_to_reward = {}
         host_id = message.author.id
         users_to_reward[host_id] = str(message.author)
@@ -137,7 +135,7 @@ async def on_message(message):
 
         update_quotas_in_sheet(users_to_reward, earned_points)
         await message.add_reaction("✅")
-        print("Successfully updated Google Sheet and reacted!")
+        print("✅ Successfully updated Google Sheet and reacted!")
     except Exception as e:
         print(f"❌ Error processing log message: {e}")
         
