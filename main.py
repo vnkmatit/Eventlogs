@@ -23,11 +23,11 @@ def get_google_sheet():
     ]
     creds_dict = dict(st.secrets["gcp_service_account"])
     
-    # Automatically clean up whitespace, indentation, or literal escape characters
+    # Ultra-robust private key cleaner
     if "private_key" in creds_dict:
-        pk = creds_dict["private_key"].strip()
-        if "\\n" in pk and "\n" not in pk:
-            pk = pk.replace("\\n", "\n")
+        pk = str(creds_dict["private_key"]).strip()
+        pk = pk.strip('"\'')  # Remove any accidental wrapping quotes
+        pk = pk.replace("\\n", "\n")  # Convert literal text \n to actual newlines
         creds_dict["private_key"] = pk
 
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
