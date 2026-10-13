@@ -1,6 +1,7 @@
 import os
 import re
 import threading
+import json
 import pandas as pd
 import discord
 from discord import app_commands
@@ -15,14 +16,12 @@ from google.oauth2.service_account import Credentials
 LOGGING_CHANNEL_ID = 1538166153799532574      # Channel where hosts post their logs
 SPREADSHEET_NAME = "Event Quotas"             # Name of your Google Sheet
 
-# --- GOOGLE SHEETS SETUP ---
-import json
-
+# --- GOOGLE SHEETS STYLING HELPER ---
 def style_google_sheet(sheet):
     try:
-        # Style the header row (A1:C1)
+        # Style the header row (A1:C1) with dark slate blue and bold white text
         sheet.format("A1:C1", {
-            "backgroundColor": {"red": 0.12, "green": 0.16, "blue": 0.22}, # Dark slate blue
+            "backgroundColor": {"red": 0.12, "green": 0.16, "blue": 0.22},
             "textFormat": {
                 "bold": True,
                 "foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
@@ -35,12 +34,12 @@ def style_google_sheet(sheet):
     except Exception as e:
         print(f"Styling note: {e}")
 
+# --- GOOGLE SHEETS SETUP ---
 def get_google_sheet():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
-    # Parse the JSON credentials directly without manual string cleaning
     creds_dict = json.loads(st.secrets["GOOGLE_CREDENTIALS_JSON"])
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     client = gspread.authorize(creds)
@@ -51,6 +50,7 @@ def get_google_sheet():
         spreadsheet = client.create(SPREADSHEET_NAME)
         sheet = spreadsheet.sheet1
         sheet.append_row(["User ID", "Username", "Points"])
+        style_google_sheet(sheet)
     return sheet
 
 def load_quotas_from_sheet():
@@ -92,6 +92,8 @@ def update_quotas_in_sheet(users_dict, earned_points):
     sheet.append_row(["User ID", "Username", "Points"])
     for _, row in df.iterrows():
         sheet.append_row([str(row["User ID"]), str(row["Username"]), int(row["Points"])])
+    
+    style_google_sheet(sheet)
 
 # --- STREAMLIT DASHBOARD & QUOTA SHEET ---
 st.title("📊 Event Quota Sheet & Bot Dashboard")
@@ -219,6 +221,7 @@ async def remove_points(
         sheet.append_row(["User ID", "Username", "Points"])
         for _, row in df.iterrows():
             sheet.append_row([str(row["User ID"]), str(row["Username"]), int(row["Points"])])
+        style_google_sheet(sheet)
         
         await interaction.followup.send(
             f"✅ Successfully removed `{deduct_points}` points from {user.mention}. Their new total is `{new_points}` points.",
