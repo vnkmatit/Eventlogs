@@ -19,7 +19,6 @@ SPREADSHEET_NAME = "Event Quotas"             # Name of your Google Sheet
 # --- GOOGLE SHEETS STYLING HELPER ---
 def style_google_sheet(sheet):
     try:
-        # Style the header row (A1:C1) with dark slate blue and bold white text
         sheet.format("A1:C1", {
             "backgroundColor": {"red": 0.12, "green": 0.16, "blue": 0.22},
             "textFormat": {
@@ -29,7 +28,6 @@ def style_google_sheet(sheet):
             },
             "horizontalAlignment": "CENTER"
         })
-        # Freeze the header row so it stays visible when scrolling
         sheet.freeze(rows=1)
     except Exception as e:
         print(f"Styling note: {e}")
@@ -153,11 +151,12 @@ async def on_message(message):
 
         users_to_reward = {}
         host_id = message.author.id
-        users_to_reward[host_id] = str(message.author)
+        # Use display_name to capture server nickname / Roblox display name
+        users_to_reward[host_id] = message.author.display_name
 
         for member in message.mentions:
             if not member.bot and member.id != host_id:
-                users_to_reward[member.id] = str(member)
+                users_to_reward[member.id] = member.display_name
 
         update_quotas_in_sheet(users_to_reward, earned_points)
         await message.add_reaction("✅")
