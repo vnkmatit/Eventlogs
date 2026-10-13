@@ -16,20 +16,15 @@ LOGGING_CHANNEL_ID = 1538166153799532574      # Channel where hosts post their l
 SPREADSHEET_NAME = "Event Quotas"             # Name of your Google Sheet
 
 # --- GOOGLE SHEETS SETUP ---
+import json
+
 def get_google_sheet():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
-    creds_dict = dict(st.secrets["gcp_service_account"])
-    
-    # Ultra-robust private key cleaner
-    if "private_key" in creds_dict:
-        pk = str(creds_dict["private_key"]).strip()
-        pk = pk.strip('"\'')  # Remove any accidental wrapping quotes
-        pk = pk.replace("\\n", "\n")  # Convert literal text \n to actual newlines
-        creds_dict["private_key"] = pk
-
+    # Parse the JSON credentials directly without manual string cleaning
+    creds_dict = json.loads(st.secrets["GOOGLE_CREDENTIALS_JSON"])
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     client = gspread.authorize(creds)
     
