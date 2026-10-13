@@ -76,8 +76,8 @@ async def on_message(message):
     if message.channel.id != LOGGING_CHANNEL_ID:
         return
 
-    # Look for points format in the message (e.g., "Points: 10" or "10 points")
-    points_match = re.search(r'(?:points|pts)[\s:]*(\d+)', message.content, re.IGNORECASE)
+    # Flexible search for points (handles "Points awarded: 3", "Points: 3", "3 points", etc.)
+    points_match = re.search(r'(?:points|pts)[^\d]*(\d+)', message.content, re.IGNORECASE)
     if not points_match:
         points_match = re.search(r'(\d+)\s*(?:points|pts)', message.content, re.IGNORECASE)
 
