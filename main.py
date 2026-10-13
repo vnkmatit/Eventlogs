@@ -2,10 +2,12 @@ import os
 import re
 import threading
 import json
+import datetime
+from zoneinfo import ZoneInfo
 import pandas as pd
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
@@ -128,12 +130,35 @@ def is_officer_or_staff():
         return False
     return app_commands.check(predicate)
 
+# --- AUTOMATED WEEKLY RESET TASK ---
+@tasks.loop(time=datetime.time(hour=0, minute=0, tzinfo=ZoneInfo("America/New_York")))
+async def weekly_quota_reset():
+    now = datetime.datetime.now(ZoneInfo("America/New_York"))
+    if now.weekday() == 0:  # Monday
+        try:
+            sheet = get_google_sheet()
+            sheet.clear()
+            sheet.append_row(["User ID", "Username", "Points"])
+            style_google_sheet(sheet)
+            MESSAGE_CREDITS.clear()
+            print("🔄 Weekly quota reset executed successfully!", flush=True)
+        except Exception as e:
+            print(f"❌ Error during weekly quota reset: {e}", flush=True)
+
+@weekly_quota_reset.before_loop
+async def before_weekly_reset():
+    await bot.wait_until_ready()
+
 @bot.event
 async def on_ready():
     print(f"🤖 Bot is ONLINE as {bot.user}", flush=True)
     print(f"Connected to the following servers:", flush=True)
     for guild in bot.guilds:
         print(f" - {guild.name} (ID: {guild.id})", flush=True)
+    
+    # Start the weekly reset loop safely if not already running
+    if not weekly_quota_reset.is_running():
+        weekly_quota_reset.start()
     
     try:
         synced = await bot.tree.sync()
@@ -169,10 +194,7 @@ async def process_log_message(message):
             if not member.bot and member.id != host_id:
                 current_users[member.id] = member.display_name
 
-        # Get or create the credited set for this message ID
         credited_set = MESSAGE_CREDITS.setdefault(message.id, set())
-
-        # Filter out users who already received points for this specific message
         new_users_to_reward = {uid: uname for uid, uname in current_users.items() if uid not in credited_set}
 
         if new_users_to_reward:
