@@ -16,6 +16,9 @@ from google.oauth2.service_account import Credentials
 LOGGING_CHANNEL_ID = 1538166153799532574      # Channel where hosts post their logs
 SPREADSHEET_NAME = "Event Quotas"             # Name of your Google Sheet
 
+# Track credited users per message ID to safely support message edits without duplication
+MESSAGE_CREDITS = {}
+
 # --- GOOGLE SHEETS STYLING HELPER ---
 def style_google_sheet(sheet):
     try:
@@ -138,10 +141,8 @@ async def on_ready():
     except Exception as e:
         print(f"Failed to sync commands: {e}", flush=True)
 
-@bot.event
-async def on_message(message):
-    print(f"📥 GLOBAL DEBUG: Saw message '{message.content}' from {message.author} in channel ID {message.channel.id}", flush=True)
-
+# Shared core logic for processing initial messages and edits
+async def process_log_message(message):
     if message.author.bot:
         return
 
@@ -160,19 +161,42 @@ async def on_message(message):
         earned_points = int(points_match.group(1))
         print(f"✅ Found {earned_points} points! Processing users...", flush=True)
 
-        users_to_reward = {}
+        current_users = {}
         host_id = message.author.id
-        users_to_reward[host_id] = message.author.display_name
+        current_users[host_id] = message.author.display_name
 
         for member in message.mentions:
             if not member.bot and member.id != host_id:
-                users_to_reward[member.id] = member.display_name
+                current_users[member.id] = member.display_name
 
-        update_quotas_in_sheet(users_to_reward, earned_points)
-        await message.add_reaction("✅")
-        print("✅ Successfully updated Google Sheet and reacted!", flush=True)
+        # Get or create the credited set for this message ID
+        credited_set = MESSAGE_CREDITS.setdefault(message.id, set())
+
+        # Filter out users who already received points for this specific message
+        new_users_to_reward = {uid: uname for uid, uname in current_users.items() if uid not in credited_set}
+
+        if new_users_to_reward:
+            update_quotas_in_sheet(new_users_to_reward, earned_points)
+            for uid in new_users_to_reward:
+                credited_set.add(uid)
+            print(f"✅ Successfully credited new users for message {message.id}!", flush=True)
+        else:
+            print(f"ℹ️ Message {message.id} checked/edited, but no new users to reward.", flush=True)
+
+        if not any(reaction.me for reaction in message.reactions):
+            await message.add_reaction("✅")
     except Exception as e:
         print(f"❌ Error processing log message: {e}", flush=True)
+
+@bot.event
+async def on_message(message):
+    print(f"📥 GLOBAL DEBUG: Saw message '{message.content}' from {message.author} in channel ID {message.channel.id}", flush=True)
+    await process_log_message(message)
+
+@bot.event
+async def on_message_edit(before, after):
+    print(f"✏️ GLOBAL DEBUG: Message edited in channel ID {after.channel.id}: '{after.content}'", flush=True)
+    await process_log_message(after)
 
 @bot.tree.command(name="quota", description="Check current quota points for yourself or another user")
 @app_commands.describe(user="Optional user to check (defaults to yourself)")
