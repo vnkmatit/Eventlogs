@@ -22,6 +22,14 @@ def get_google_sheet():
         "https://www.googleapis.com/auth/drive"
     ]
     creds_dict = dict(st.secrets["gcp_service_account"])
+    
+    # Automatically clean up whitespace, indentation, or literal escape characters
+    if "private_key" in creds_dict:
+        pk = creds_dict["private_key"].strip()
+        if "\\n" in pk and "\n" not in pk:
+            pk = pk.replace("\\n", "\n")
+        creds_dict["private_key"] = pk
+
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     client = gspread.authorize(creds)
     
