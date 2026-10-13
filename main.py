@@ -18,6 +18,23 @@ SPREADSHEET_NAME = "Event Quotas"             # Name of your Google Sheet
 # --- GOOGLE SHEETS SETUP ---
 import json
 
+def style_google_sheet(sheet):
+    try:
+        # Style the header row (A1:C1)
+        sheet.format("A1:C1", {
+            "backgroundColor": {"red": 0.12, "green": 0.16, "blue": 0.22}, # Dark slate blue
+            "textFormat": {
+                "bold": True,
+                "foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
+                "fontSize": 11
+            },
+            "horizontalAlignment": "CENTER"
+        })
+        # Freeze the header row so it stays visible when scrolling
+        sheet.freeze(rows=1)
+    except Exception as e:
+        print(f"Styling note: {e}")
+
 def get_google_sheet():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
