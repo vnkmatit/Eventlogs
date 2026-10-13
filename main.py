@@ -77,7 +77,6 @@ def update_quotas_in_sheet(users_dict, earned_points):
 st.title("📊 Event Quota Sheet & Bot Dashboard")
 st.success("🤖 Bot process active and connected to Google Sheets.")
 
-# Display Live Quota Sheet Table from Google Sheets
 try:
     df_display = load_quotas_from_sheet()
     st.subheader("Member Quota Points Leaderboard")
@@ -97,17 +96,20 @@ BOT_TOKEN = st.secrets.get("DISCORD_BOT_TOKEN") or os.getenv("DISCORD_BOT_TOKEN"
 
 @bot.event
 async def on_ready():
+    print(f"🤖 Bot is ONLINE as {bot.user}", flush=True)
+    print(f"Connected to the following servers:", flush=True)
+    for guild in bot.guilds:
+        print(f" - {guild.name} (ID: {guild.id})", flush=True)
+    
     try:
         synced = await bot.tree.sync()
-        print(f"✅ Synced {len(synced)} command(s).")
+        print(f"✅ Synced {len(synced)} command(s).", flush=True)
     except Exception as e:
-        print(f"Failed to sync commands: {e}")
-    print(f"🤖 Bot is ONLINE as {bot.user}")
+        print(f"Failed to sync commands: {e}", flush=True)
 
 @bot.event
 async def on_message(message):
-    # This will print EVERY message the bot can see across the entire server
-    print(f"🔍 GLOBAL DEBUG: Saw message '{message.content}' from {message.author} in channel #{message.channel.name} ({message.channel.id})")
+    print(f"📥 GLOBAL DEBUG: Saw message '{message.content}' from {message.author} in channel ID {message.channel.id}", flush=True)
 
     if message.author.bot:
         return
@@ -121,10 +123,12 @@ async def on_message(message):
             points_match = re.search(r'(\d+)\s*(?:points|pts)', message.content, re.IGNORECASE)
 
         if not points_match:
-            print(f"⚠️ Ignored: Could not find points pattern in message.")
+            print(f"⚠️ Ignored: Could not find points pattern in message.", flush=True)
             return
 
         earned_points = int(points_match.group(1))
+        print(f"✅ Found {earned_points} points! Processing users...", flush=True)
+
         users_to_reward = {}
         host_id = message.author.id
         users_to_reward[host_id] = str(message.author)
@@ -135,10 +139,10 @@ async def on_message(message):
 
         update_quotas_in_sheet(users_to_reward, earned_points)
         await message.add_reaction("✅")
-        print("✅ Successfully updated Google Sheet and reacted!")
+        print("✅ Successfully updated Google Sheet and reacted!", flush=True)
     except Exception as e:
-        print(f"❌ Error processing log message: {e}")
-        
+        print(f"❌ Error processing log message: {e}", flush=True)
+
 @bot.tree.command(name="quota", description="Check current quota points for yourself or another user")
 @app_commands.describe(user="Optional user to check (defaults to yourself)")
 async def quota(interaction: discord.Interaction, user: discord.Member = None):
