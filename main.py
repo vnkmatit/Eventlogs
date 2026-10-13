@@ -112,29 +112,29 @@ async def on_message(message):
     if message.channel.id != LOGGING_CHANNEL_ID:
         return
 
-    points_match = re.search(r'(?:points|pts)[^\d]*(\d+)', message.content, re.IGNORECASE)
-    if not points_match:
-        points_match = re.search(r'(\d+)\s*(?:points|pts)', message.content, re.IGNORECASE)
-
-    if not points_match:
-        return
-
-    earned_points = int(points_match.group(1))
-
-    users_to_reward = {}
-    host_id = message.author.id
-    users_to_reward[host_id] = str(message.author)
-
-    for member in message.mentions:
-        if not member.bot and member.id != host_id:
-            users_to_reward[member.id] = str(member)
-
     try:
+        points_match = re.search(r'(?:points|pts)[^\d]*(\d+)', message.content, re.IGNORECASE)
+        if not points_match:
+            points_match = re.search(r'(\d+)\s*(?:points|pts)', message.content, re.IGNORECASE)
+
+        if not points_match:
+            return
+
+        earned_points = int(points_match.group(1))
+
+        users_to_reward = {}
+        host_id = message.author.id
+        users_to_reward[host_id] = str(message.author)
+
+        for member in message.mentions:
+            if not member.bot and member.id != host_id:
+                users_to_reward[member.id] = str(member)
+
         update_quotas_in_sheet(users_to_reward, earned_points)
         await message.add_reaction("✅")
     except Exception as e:
-        print(f"Failed to update Google Sheet: {e}")
-
+        print(f"❌ Error processing log message: {e}")
+        
 @bot.tree.command(name="quota", description="Check current quota points for yourself or another user")
 @app_commands.describe(user="Optional user to check (defaults to yourself)")
 async def quota(interaction: discord.Interaction, user: discord.Member = None):
