@@ -6,24 +6,84 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import streamlit as st
+import gspread
+from google.oauth2.service_account import Credentials
 
 # ==========================================
 # CONFIGURATION & CHANNEL ID
 # ==========================================
 LOGGING_CHANNEL_ID = 1538166153799532574      # Channel where hosts post their logs
-CSV_FILE = "quotas.csv"
+SPREADSHEET_NAME = "Event Quotas"             # Name of your Google Sheet
+
+# --- GOOGLE SHEETS SETUP ---
+def get_google_sheet():
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    client = gspread.authorize(creds)
+    
+    try:
+        sheet = client.open(SPREADSHEET_NAME).sheet1
+    except gspread.SpreadsheetNotFound:
+        spreadsheet = client.create(SPREADSHEET_NAME)
+        sheet = spreadsheet.sheet1
+        sheet.append_row(["User ID", "Username", "Points"])
+    return sheet
+
+def load_quotas_from_sheet():
+    try:
+        sheet = get_google_sheet()
+        data = sheet.get_all_records()
+        if not data:
+            return pd.DataFrame(columns=["User ID", "Username", "Points"])
+        return pd.DataFrame(data)
+    except Exception as e:
+        return pd.DataFrame(columns=["User ID", "Username", "Points"])
+
+def update_quotas_in_sheet(users_dict, earned_points):
+    sheet = get_google_sheet()
+    records = sheet.get_all_records()
+    
+    if records:
+        df = pd.DataFrame(records)
+    else:
+        df = pd.DataFrame(columns=["User ID", "Username", "Points"])
+        sheet.append_row(["User ID", "Username", "Points"])
+
+    for user_id, username in users_dict.items():
+        user_id_str = str(user_id)
+        df["User ID"] = df["User ID"].astype(str)
+        
+        if user_id_str in df["User ID"].values:
+            df.loc[df["User ID"] == user_id_str, "Points"] += earned_points
+            df.loc[df["User ID"] == user_id_str, "Username"] = username
+        else:
+            new_row = pd.DataFrame({
+                "User ID": [user_id_str], 
+                "Username": [username], 
+                "Points": [earned_points]
+            })
+            df = pd.concat([df, new_row], ignore_index=True)
+    
+    sheet.clear()
+    sheet.append_row(["User ID", "Username", "Points"])
+    for _, row in df.iterrows():
+        sheet.append_row([str(row["User ID"]), str(row["Username"]), int(row["Points"])])
 
 # --- STREAMLIT DASHBOARD & QUOTA SHEET ---
 st.title("📊 Event Quota Sheet & Bot Dashboard")
-st.success("🤖 Bot process active and listening for log messages.")
+st.success("🤖 Bot process active and connected to Google Sheets.")
 
-# Display Live Quota Sheet Table (Accessible via web link)
-if os.path.exists(CSV_FILE):
-    df = pd.read_csv(CSV_FILE)
+# Display Live Quota Sheet Table from Google Sheets
+try:
+    df_display = load_quotas_from_sheet()
     st.subheader("Member Quota Points Leaderboard")
-    st.dataframe(df, use_container_width=True)
-else:
-    st.info("No points logged yet. Post event logs in the Discord logging channel to start tracking quotas!")
+    st.dataframe(df_display, use_container_width=True)
+except Exception as e:
+    st.warning("Please configure your Google Service Account in Streamlit Secrets to view the leaderboard.")
 
 # --- DISCORD BOT SETUP ---
 intents = discord.Intents.default()
@@ -34,28 +94,6 @@ intents.reactions = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 BOT_TOKEN = st.secrets.get("DISCORD_BOT_TOKEN") or os.getenv("DISCORD_BOT_TOKEN")
-
-def update_quotas(users_dict, earned_points):
-    """Updates or creates the local quotas.csv file with earned points for users and host."""
-    if os.path.exists(CSV_FILE):
-        df = pd.read_csv(CSV_FILE)
-    else:
-        df = pd.DataFrame(columns=["User ID", "Username", "Points"])
-
-    for user_id, username in users_dict.items():
-        user_id_str = str(user_id)
-        if user_id_str in df["User ID"].astype(str).values:
-            df.loc[df["User ID"].astype(str) == user_id_str, "Points"] += earned_points
-            df.loc[df["User ID"].astype(str) == user_id_str, "Username"] = username
-        else:
-            new_row = pd.DataFrame({
-                "User ID": [user_id_str], 
-                "Username": [username], 
-                "Points": [earned_points]
-            })
-            df = pd.concat([df, new_row], ignore_index=True)
-    
-    df.to_csv(CSV_FILE, index=False)
 
 @bot.event
 async def on_ready():
@@ -68,60 +106,50 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    # Ignore bot messages
     if message.author.bot:
         return
 
-    # Only process messages posted in the designated logging channel
     if message.channel.id != LOGGING_CHANNEL_ID:
         return
 
-    # Flexible search for points (handles "Points awarded: 3", "Points: 3", "3 points", etc.)
     points_match = re.search(r'(?:points|pts)[^\d]*(\d+)', message.content, re.IGNORECASE)
     if not points_match:
         points_match = re.search(r'(\d+)\s*(?:points|pts)', message.content, re.IGNORECASE)
 
-    # If no points are found, ignore the message
     if not points_match:
         return
 
     earned_points = int(points_match.group(1))
 
-    # Dictionary to hold user ID -> username mapping
     users_to_reward = {}
-
-    # 1. Add the host (message author) so they get points too
     host_id = message.author.id
     users_to_reward[host_id] = str(message.author)
 
-    # 2. Add valid mentioned attendees
     for member in message.mentions:
         if not member.bot and member.id != host_id:
             users_to_reward[member.id] = str(member)
 
-    # Update quota sheet
-    update_quotas(users_to_reward, earned_points)
-
-    # React to confirm processing
     try:
+        update_quotas_in_sheet(users_to_reward, earned_points)
         await message.add_reaction("✅")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Failed to update Google Sheet: {e}")
 
 @bot.tree.command(name="quota", description="Check current quota points for yourself or another user")
 @app_commands.describe(user="Optional user to check (defaults to yourself)")
 async def quota(interaction: discord.Interaction, user: discord.Member = None):
     target_user = user or interaction.user
+    df = load_quotas_from_sheet()
     
-    if not os.path.exists(CSV_FILE):
+    if df.empty or "User ID" not in df.columns:
         await interaction.response.send_message("❌ No quota sheet data exists yet.", ephemeral=True)
         return
 
-    df = pd.read_csv(CSV_FILE)
+    df["User ID"] = df["User ID"].astype(str)
     user_id_str = str(target_user.id)
 
-    if user_id_str in df["User ID"].astype(str).values:
-        user_row = df.loc[df["User ID"].astype(str) == user_id_str].iloc[0]
+    if user_id_str in df["User ID"].values:
+        user_row = df.loc[df["User ID"] == user_id_str].iloc[0]
         points = user_row["Points"]
         await interaction.response.send_message(f"📊 **{target_user.display_name}'s Quota:** `{points}` points", ephemeral=False)
     else:
@@ -145,18 +173,24 @@ async def remove_points(
         await interaction.followup.send("❌ Error: Points must be a valid number (e.g., `5`).", ephemeral=True)
         return
 
-    if not os.path.exists(CSV_FILE):
+    df = load_quotas_from_sheet()
+    if df.empty or "User ID" not in df.columns:
         await interaction.followup.send("❌ No quota sheet data exists yet.", ephemeral=True)
         return
 
-    df = pd.read_csv(CSV_FILE)
+    df["User ID"] = df["User ID"].astype(str)
     user_id_str = str(user.id)
 
-    if user_id_str in df["User ID"].astype(str).values:
-        current_points = int(df.loc[df["User ID"].astype(str) == user_id_str, "Points"].values[0])
+    if user_id_str in df["User ID"].values:
+        current_points = int(df.loc[df["User ID"] == user_id_str, "Points"].values[0])
         new_points = max(0, current_points - deduct_points) 
-        df.loc[df["User ID"].astype(str) == user_id_str, "Points"] = new_points
-        df.to_csv(CSV_FILE, index=False)
+        df.loc[df["User ID"] == user_id_str, "Points"] = new_points
+        
+        sheet = get_google_sheet()
+        sheet.clear()
+        sheet.append_row(["User ID", "Username", "Points"])
+        for _, row in df.iterrows():
+            sheet.append_row([str(row["User ID"]), str(row["Username"]), int(row["Points"])])
         
         await interaction.followup.send(
             f"✅ Successfully removed `{deduct_points}` points from {user.mention}. Their new total is `{new_points}` points.",
